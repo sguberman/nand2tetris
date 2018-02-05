@@ -14,7 +14,7 @@
 // Put your code here.
 
 (MAINLOOP)
-    @KBD
+    @KBD        // 24576
     D=M         // D=key
     @BLACK
     D;JNE       // if D!=0 goto BLACK
@@ -41,19 +41,16 @@
     (FILLLOOP)
         @loc
         D=M
-        @131072   // total sequential bits in screen map
+        @24575   // screen start + total 16bit words in screen map
         D=D-A
         @MAINLOOP
-        D;JGT   // if loc-131072>0 goto MAINLOOP
+        D;JGT   // if loc-24576>0 goto MAINLOOP
         @color
         D=M     // D=color
         @loc
         A=M     // access screen memory @loc
         M=D     // screen = color
-        @16
-        D=A
         @loc
-        M=D+M  // increment loc by 16
+        M=M+1  // increment loc
         @FILLLOOP
         0;JMP   // goto FILLLOOP
-
