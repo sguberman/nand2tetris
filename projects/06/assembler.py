@@ -47,15 +47,14 @@ JUMP = {  # Jump Table
 def parser(filename):
     with open(filename) as f:
         for line in f:
-            line = line.strip()
-            if (line == '') or line.startswith('//'):
+            instruction = line.split('//')[0].strip()
+            if not instruction:
                 continue
-            if line.startswith('@'):
-                yield ('A_COMMAND', line.split()[0][1:])
-            elif line.startswith('('):
-                yield ('L_COMMAND', line.split()[0][1:-1])
+            if instruction.startswith('@'):
+                yield ('A_COMMAND', instruction[1:])
+            elif instruction.startswith('('):
+                yield ('L_COMMAND', instruction[1:-1])
             else:
-                instruction = line.split()[0]
                 *dest, rhs = instruction.split('=')
                 comp, *jump = rhs.split(';')
                 yield ('C_COMMAND', *dest, comp, *jump)
