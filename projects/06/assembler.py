@@ -46,31 +46,81 @@ JUMP = {  # Jump Table
 }
 
 
-def ignore_comments_and_whitespace(fileobj):
-    for line in fileobj:
+class SymbolTable:
+    def __init__(self):
+        self.d = {
+            'SP':       0,
+            'LCL':      1,
+            'ARG':      2,
+            'THIS':     3,
+            'THAT':     4,
+            'SCREEN':   16384,
+            'KBD':      24576,
+        }
+        
+        for i in range(16):
+            label = 'R{}'.format(i)
+            self.d[label] = i
+        
+        self.address = 15
+
+    def new_address(self, label):
+        self.address += 1
+        self.set(label, self.address)
+        return self.address
+
+    def set(self, label, address):
+        self.d[label] = address
+
+    def get(self, label):
+        try:
+            return self.d[label]
+        except KeyError:
+            return self.new_address(label)
+
+
+def ignore_comments_and_whitespace(filehandler):
+    for line in filehandler:
         instruction = line.split('//')[0].strip()
         if not instruction:
             continue
         yield instruction
 
 
-def replace_symbols(instructions):
+def replace_labels(instructions):
+    symbols = SymbolTable()
+    line_counter = 0
+    program = []
     for instruction in instructions:
-        yield instruction
-
-
-def translate(instructions):
-    for instruction in instructions:
-        if instruction.startswith('@'):
-            yield a_command(instruction[1:])
+        if instruction.startswith('('):
+            symbols.set(instruction[1:-1], line_counter)
         else:
-            *dest, rhs = instruction.split('=')
+            line_counter += 1
+            program.append(instruction)
+    return program, symbols
+
+
+def first_pass(filehandler):
+    return replace_labels(ignore_comments_and_whitespace(filehandler))
+
+
+def translate(program, symbols):
+    for command in program:
+        if command.startswith('@'):
+            symbol = command[1:]
+            try:
+                address = int(symbol)
+            except ValueError:
+                address = symbols.get(symbol)
+            yield a_command(address)
+        else:
+            *dest, rhs = command.split('=')
             comp, *jump = rhs.split(';')
             yield c_command(comp, dest, jump)
 
 
 def a_command(number):
-    return '0{:015b}'.format(int(number))
+    return '0{:015b}'.format(number)
 
 
 def c_command(comp, dest=None, jump=None):
@@ -79,11 +129,14 @@ def c_command(comp, dest=None, jump=None):
     return '111{}{}{}'.format(COMP[comp], DEST[dest], JUMP[jump])
 
 
+def assemble(infile):
+    outfile = os.path.splitext(infile)[0] + '.hack'
+    with open(infile, 'r') as i, open(outfile, 'w') as o:
+        for line in translate(*first_pass(i)):
+            o.write(line + '\n')
+
+
 if __name__ == '__main__':
-    assemblyfile = sys.argv[1]
-    hackfile = os.path.splitext(assemblyfile)[0] + '.hack'
-    with open(hackfile, 'w') as h, open(assemblyfile, 'r') as a:
-        instructions_only = replace_symbols(ignore_comments_and_whitespace(a))
-        for instruction in translate(instructions_only):
-            h.write(instruction + '\n')
+    assembly_file = sys.argv[1]
+    assemble(assembly_file)
 
