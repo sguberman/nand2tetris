@@ -1,3 +1,4 @@
+import os
 import sys
 
 
@@ -6,9 +7,9 @@ COMP = {  # C-Instruction Table
     '1':    '0111111',
     '-1':   '0111010',
     'D':    '0001100',
-    'A':    '0110000',  'M':    '111000',
+    'A':    '0110000',  'M':    '1110000',
     '!D':   '0001101',
-    '!A':   '0110001',  '!A':   '1110001',
+    '!A':   '0110001',  '!M':   '1110001',
     '-D':   '0001111',
     '-A':   '0110011',  '-A':   '1110011',
     'D+1':  '0011111',
@@ -44,25 +45,45 @@ JUMP = {  # Jump Table
     'JMP':  '111',
 }
 
-def parser(filename):
-    with open(filename) as f:
-        for line in f:
-            instruction = line.split('//')[0].strip()
-            if not instruction:
-                continue
-            if instruction.startswith('@'):
-                yield ('A_COMMAND', instruction[1:])
-            elif instruction.startswith('('):
-                yield ('L_COMMAND', instruction[1:-1])
-            else:
-                *dest, rhs = instruction.split('=')
-                comp, *jump = rhs.split(';')
-                yield ('C_COMMAND', *dest, comp, *jump)
+
+def ignore_comments_and_whitespace(fileobj):
+    for line in fileobj:
+        instruction = line.split('//')[0].strip()
+        if not instruction:
+            continue
+        yield instruction
+
+
+def replace_symbols(instructions):
+    for instruction in instructions:
+        yield instruction
+
+
+def translate(instructions):
+    for instruction in instructions:
+        if instruction.startswith('@'):
+            yield a_command(instruction[1:])
+        else:
+            *dest, rhs = instruction.split('=')
+            comp, *jump = rhs.split(';')
+            yield c_command(comp, dest, jump)
+
+
+def a_command(number):
+    return '0{:015b}'.format(int(number))
+
+
+def c_command(comp, dest=None, jump=None):
+    dest = '' if not dest else dest[0]
+    jump = '' if not jump else jump[0]
+    return '111{}{}{}'.format(COMP[comp], DEST[dest], JUMP[jump])
 
 
 if __name__ == '__main__':
-    filename = sys.argv[1]
-    with open('output', 'w') as o:
-        for line in parser(filename):
-            o.write(str(line) + '\n')
+    assemblyfile = sys.argv[1]
+    hackfile = os.path.splitext(assemblyfile)[0] + '.hack'
+    with open(hackfile, 'w') as h, open(assemblyfile, 'r') as a:
+        instructions_only = replace_symbols(ignore_comments_and_whitespace(a))
+        for instruction in translate(instructions_only):
+            h.write(instruction + '\n')
 
