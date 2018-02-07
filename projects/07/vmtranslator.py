@@ -1,4 +1,4 @@
-# Translations:
+# VM Code -> Hack Pseudocode => Hack ASM Translations:
 
 # push constant n
 #   -> *SP=n, SP++
@@ -45,35 +45,40 @@
 #   => @SP, M=M-1, A=M, M=-M, @SP, M=M+1
 
 # eq/gt/lt
-@SP
-M=M-1
-A=M
-D=M
-@SP
-M=M-1
-A=M
-D=M-D
-@ASM$CMP.true
-D;JEQ/JGT/JLT
-D=0
-(ASM$CMP.callback)
-@SP
-A=M
-M=D
-@SP
-M=M+1
-@ASM$CMP.end
-0:JMP
-(ASM$CMP.true)
-D=-1
-@ASM$CMP.callback
-0;JMP
-(ASM$CMP.end)
+#   -> take difference of first two on stack and keep in D register
+#   -> jump if D eq/gt/lt 0 to set D=-1 (true) otherwise set D=0 (false)
+#   -> push D to top of stack
+#   -> labels get populated with a unique number (NNNN) during translation
+#   =>
+"""
+@$$ASM.comparisonNNNN.start
+0;JMP  // jump to start of this call
 
+($$ASM.comparisonNNNN.true)  // this function gets skipped at first
+    D=-1  // it just sets D=-1 (true)
+    @$$ASM.comparisonNNNN.callback
+    0;JMP  // jump back to call
 
+($$ASM.comparisonNNNN.start)  // call starts here
+    @SP
+    M=M-1
+    A=M
+    D=M   // D=stack.pop()
+    @SP
+    M=M-1
+    A=M
+    D=M-D  // D=stack.pop()-D
+    @$$ASM.comparisonNNNN.true
+    D;JEQ/JGT/JLT  // jump to function if true
+    D=0  // otherwise false
 
-# gt
-# lt
+(@$$ASM.comparisonNNNN.callback)  // jump back here
+    @SP
+    A=M
+    M=D
+    @SP
+    M=M+1  // push D to stack
+"""
 
 # and/or
 #   -> SP--, SP--, D=SP*, SP++, D=D&/|SP*, SP--, SP*=D, SP++
@@ -82,3 +87,4 @@ D=-1
 # not
 #   -> SP--, *SP=!*SP, SP++
 #   => @SP, M=M-1, A=M, M=!M, @SP, M=M+1
+
