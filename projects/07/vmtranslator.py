@@ -1,6 +1,8 @@
 import os
 import sys
 
+from collections import defaultdict
+
 
 # VM Code -> Hack Pseudocode => Hack ASM Translations:
 
@@ -8,7 +10,7 @@ import sys
 #   -> *SP=n, SP++
 #   => @n, D=A, @SP, A=M, M=D, @SP, M=M+1
 
-# pop segment i (segment: local->LCL, argument->ARG, object->THIS, array->THAT)
+# pop segment i (segment: local->LCL, argument->ARG, this->THIS, that->THAT)
 #   -> addr=segment+i, SP--, *addr=*SP
 #   => @i, D=A, @segment, D=D+M, @addr, M=D,
 #   => @SP, M=M-1, A=M, D=M, @addr, A=M, M=D
@@ -118,16 +120,59 @@ class VMTranslator:
             numtext = ' {}: '.format(line_number)
         return '{}{}{}'.format(leader, numtext, name)
 
-    @classmethod
-    def push(cls, segment, i, line_number=None):
+    def push(self, segment, i, line_number=None):
         name = 'push {} {}'.format(segment, i)
-        comment = cls.comment_string(name, line_number)
-        assembly = '@{}, D=A, @SP, A=M, M=D, @SP, M=M+1'.format(i).split(', ')
+        comment = self.comment_string(name, line_number)
+
+        segments = defaultdict(str, {
+            'local': 'LCL',
+            'argument': 'ARG',
+            'this': 'THIS',
+            'that': 'THAT',
+        })
+
+        lcl_arg_this_that = ('@{}, D=A, @{}, D=D+M, A=D, D=M, @SP, A=M, '
+                             'M=D, @SP, M=M+1').format(i, segments[segment])
+
+        templates = {
+            'constant': '@{}, D=A, @SP, A=M, M=D, @SP, M=M+1'.format(i),
+            'local': lcl_arg_this_that,
+            'argument': lcl_arg_this_that,
+            'this': lcl_arg_this_that,
+            'that': lcl_arg_this_that,
+            'temp': ('@{}, D=A, @5, D=D+A, A=D, D=M, @SP, '
+                     'A=M, M=D, @SP, M=M+1').format(i),
+        }
+
+        assembly = templates[segment].split(', ')
         return [comment] + assembly
 
-    @classmethod
-    def pop(cls, segment, i, line_number=None):
-        raise NotImplementedError
+    def pop(self, segment, i, line_number=None):
+        name = 'pop {} {}'.format(segment, i)
+        comment = self.comment_string(name, line_number)
+
+        segments = defaultdict(str, {
+            'local': 'LCL',
+            'argument': 'ARG',
+            'this': 'THIS',
+            'that': 'THAT',
+        })
+
+        lcl_arg_this_that = ('@{}, D=A, @{}, D=D+M, @addr, M=D, @SP, M=M-1, '
+                             'A=M, D=M, @addr, A=M, M=D').format(i,
+                             segments[segment])
+
+        templates = {
+            'local': lcl_arg_this_that,
+            'argument': lcl_arg_this_that,
+            'this': lcl_arg_this_that,
+            'that': lcl_arg_this_that,
+            'temp': ('@{}, D=A, @5, D=D+A, @addr, M=D, @SP, M=M-1, A=M, D=M, '
+                     '@addr, A=M, M=D').format(i),
+        }
+
+        assembly = templates[segment].split(', ')
+        return [comment] + assembly
 
     @classmethod
     def add(cls, line_number=None):
@@ -149,20 +194,19 @@ class VMTranslator:
         assembly = '@SP, M=M-1, A=M, M=-M, @SP, M=M+1'.split(', ')
         return [comment] + assembly
 
-    @classmethod
-    def parse(cls, line, line_number=None):
+    def parse(self, line, line_number=None):
         commands = {
-            'push': cls.push,
-            'pop': cls.pop,
-            'add': cls.add,
-            'sub': cls.sub,
-            'neg': cls.neg,
-            'eq': cls.eq,
-            'gt': cls.gt,
-            'lt': cls.lt,
-            'and': cls.and_,
-            'or': cls.or_,
-            'not': cls.not_,
+            'push': self.push,
+            'pop': self.pop,
+            'add': self.add,
+            'sub': self.sub,
+            'neg': self.neg,
+            'eq': self.eq,
+            'gt': self.gt,
+            'lt': self.lt,
+            'and': self.and_,
+            'or': self.or_,
+            'not': self.not_,
         }
         command, *args = line.split()
         return commands[command](*args, line_number)
