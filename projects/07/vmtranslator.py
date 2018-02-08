@@ -78,7 +78,7 @@ import sys
     D;JEQ/JGT/JLT  // jump to function if true
     D=0  // otherwise false
 
-(@$$ASM.comparisonNNNN.callback)  // jump back here
+($$ASM.comparisonNNNN.callback)  // jump back here
     @SP
     A=M
     M=D
@@ -144,13 +144,159 @@ class VMTranslator:
         return [comment] + assembly
 
     @classmethod
+    def neg(cls, line_number=None):
+        comment = cls.comment_string('neg', line_number)
+        assembly = '@SP, M=M-1, A=M, M=-M, @SP, M=M+1'.split(', ')
+        return [comment] + assembly
+
+    @classmethod
     def parse(cls, line, line_number=None):
         commands = {
             'push': cls.push,
+            'pop': cls.pop,
             'add': cls.add,
+            'sub': cls.sub,
+            'neg': cls.neg,
+            'eq': cls.eq,
+            'gt': cls.gt,
+            'lt': cls.lt,
+            'and': cls.and_,
+            'or': cls.or_,
+            'not': cls.not_,
         }
         command, *args = line.split()
         return commands[command](*args, line_number)
+
+    @classmethod
+    def eq(cls, line_number=None):
+        comment = cls.comment_string('eq', line_number)
+        start_label = '$$ASM.eq.{}.start'.format(line_number)
+        true_label = '$$ASM.eq.{}.true'.format(line_number)
+        callback_label = '$$ASM.eq.{}.callback'.format(line_number)
+        assembly = [
+            '@' + start_label,
+            '0;JMP  // jump to start of this call',
+
+            '('+ true_label + ')  // this function gets skipped at first',
+            '   D=-1  // it just sets D=-1 (true)',
+            '   @' + callback_label,
+            '   0;JMP  // jump back to call',
+
+            '(' + start_label + ')  // call starts here',
+            '   @SP',
+            '   M=M-1',
+            '   A=M',
+            '   D=M   // D=stack.pop()',
+            '   @SP',
+            '   M=M-1',
+            '   A=M',
+            '   D=M-D  // D=stack.pop()-D',
+            '   @' + true_label,
+            '   D;JEQ  // jump to function if true',
+            '   D=0  // otherwise false',
+
+            '(' + callback_label + ')  // jump back here',
+            '   @SP',
+            '   A=M',
+            '   M=D',
+            '   @SP',
+            '   M=M+1  // push D to stack',
+        ]
+        return [comment] + assembly
+
+    @classmethod
+    def gt(cls, line_number=None):
+        comment = cls.comment_string('gt', line_number)
+        start_label = '$$ASM.gt.{}.start'.format(line_number)
+        true_label = '$$ASM.gt.{}.true'.format(line_number)
+        callback_label = '$$ASM.gt.{}.callback'.format(line_number)
+        assembly = [
+            '@' + start_label,
+            '0;JMP  // jump to start of this call',
+
+            '('+ true_label + ')  // this function gets skipped at first',
+            '   D=-1  // it just sets D=-1 (true)',
+            '   @' + callback_label,
+            '   0;JMP  // jump back to call',
+
+            '(' + start_label + ')  // call starts here',
+            '   @SP',
+            '   M=M-1',
+            '   A=M',
+            '   D=M   // D=stack.pop()',
+            '   @SP',
+            '   M=M-1',
+            '   A=M',
+            '   D=M-D  // D=stack.pop()-D',
+            '   @' + true_label,
+            '   D;JGT  // jump to function if true',
+            '   D=0  // otherwise false',
+
+            '(' + callback_label + ')  // jump back here',
+            '   @SP',
+            '   A=M',
+            '   M=D',
+            '   @SP',
+            '   M=M+1  // push D to stack',
+        ]
+        return [comment] + assembly
+
+    @classmethod
+    def lt(cls, line_number=None):
+        comment = cls.comment_string('lt', line_number)
+        start_label = '$$ASM.lt.{}.start'.format(line_number)
+        true_label = '$$ASM.lt.{}.true'.format(line_number)
+        callback_label = '$$ASM.lt.{}.callback'.format(line_number)
+        assembly = [
+            '@' + start_label,
+            '0;JMP  // jump to start of this call',
+
+            '('+ true_label + ')  // this function gets skipped at first',
+            '   D=-1  // it just sets D=-1 (true)',
+            '   @' + callback_label,
+            '   0;JMP  // jump back to call',
+
+            '(' + start_label + ')  // call starts here',
+            '   @SP',
+            '   M=M-1',
+            '   A=M',
+            '   D=M   // D=stack.pop()',
+            '   @SP',
+            '   M=M-1',
+            '   A=M',
+            '   D=M-D  // D=stack.pop()-D',
+            '   @' + true_label,
+            '   D;JLT  // jump to function if true',
+            '   D=0  // otherwise false',
+
+            '(' + callback_label + ')  // jump back here',
+            '   @SP',
+            '   A=M',
+            '   M=D',
+            '   @SP',
+            '   M=M+1  // push D to stack',
+        ]
+        return [comment] + assembly
+
+    @classmethod
+    def and_(cls, line_number=None):
+        comment = cls.comment_string('and', line_number)
+        assembly = ('@SP, M=M-1, M=M-1, A=M, D=M, @SP, M=M+1, A=M, D=D&M, '
+                    '@SP, M=M-1, A=M, M=D, @SP, M=M+1').split(', ')
+        return [comment] + assembly
+
+    @classmethod
+    def or_(cls, line_number=None):
+        comment = cls.comment_string('or', line_number)
+        assembly = ('@SP, M=M-1, M=M-1, A=M, D=M, @SP, M=M+1, A=M, D=D|M, '
+                    '@SP, M=M-1, A=M, M=D, @SP, M=M+1').split(', ')
+        return [comment] + assembly
+
+    @classmethod
+    def not_(cls, line_number=None):
+        comment = cls.comment_string('not', line_number)
+        assembly = ('@SP, M=M-1, A=M, M=!M, @SP, M=M+1').split(', ')
+        return [comment] + assembly
 
     def translate(self):
         infile = self.filename
