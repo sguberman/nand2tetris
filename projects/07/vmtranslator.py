@@ -134,6 +134,8 @@ class VMTranslator:
         lcl_arg_this_that = ('@{}, D=A, @{}, D=D+M, A=D, D=M, @SP, A=M, '
                              'M=D, @SP, M=M+1').format(i, segments[segment])
 
+        pointer = defaultdict(str, {'0': 'THIS', '1': 'THAT'})
+
         templates = {
             'constant': '@{}, D=A, @SP, A=M, M=D, @SP, M=M+1'.format(i),
             'local': lcl_arg_this_that,
@@ -142,6 +144,8 @@ class VMTranslator:
             'that': lcl_arg_this_that,
             'temp': ('@{}, D=A, @5, D=D+A, A=D, D=M, @SP, '
                      'A=M, M=D, @SP, M=M+1').format(i),
+            'pointer': ('@{}, D=M, @SP, A=M, M=D, '
+                        '@SP, M=M+1').format(pointer[i]),
         }
 
         assembly = templates[segment].split(', ')
@@ -162,6 +166,8 @@ class VMTranslator:
                              'A=M, D=M, @addr, A=M, M=D').format(i,
                              segments[segment])
 
+        pointer = defaultdict(str, {'0': 'THIS', '1': 'THAT'})
+
         templates = {
             'local': lcl_arg_this_that,
             'argument': lcl_arg_this_that,
@@ -169,6 +175,8 @@ class VMTranslator:
             'that': lcl_arg_this_that,
             'temp': ('@{}, D=A, @5, D=D+A, @addr, M=D, @SP, M=M-1, A=M, D=M, '
                      '@addr, A=M, M=D').format(i),
+            'pointer': ('@SP, M=M-1, A=M, D=M, '
+                        '@{}, M=D').format(pointer[i]),
         }
 
         assembly = templates[segment].split(', ')
