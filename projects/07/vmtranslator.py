@@ -120,6 +120,10 @@ class VMTranslator:
             numtext = ' {}: '.format(line_number)
         return '{}{}{}'.format(leader, numtext, name)
 
+    def static_name(self, i):
+        static_class = os.path.splitext(os.path.basename(self.filename))[0]
+        return '{}.{}'.format(static_class, i)
+
     def push(self, segment, i, line_number=None):
         name = 'push {} {}'.format(segment, i)
         comment = self.comment_string(name, line_number)
@@ -146,6 +150,8 @@ class VMTranslator:
                      'A=M, M=D, @SP, M=M+1').format(i),
             'pointer': ('@{}, D=M, @SP, A=M, M=D, '
                         '@SP, M=M+1').format(pointer[i]),
+            'static': '@{}, D=M, @SP, A=M, M=D, @SP, M=M+1'.format(
+                      self.static_name(i)),
         }
 
         assembly = templates[segment].split(', ')
@@ -177,6 +183,8 @@ class VMTranslator:
                      '@addr, A=M, M=D').format(i),
             'pointer': ('@SP, M=M-1, A=M, D=M, '
                         '@{}, M=D').format(pointer[i]),
+            'static': '@SP, M=M-1, A=M, D=M, @{}, M=D'.format(
+                      self.static_name(i)),
         }
 
         assembly = templates[segment].split(', ')
