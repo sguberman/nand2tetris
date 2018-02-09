@@ -334,8 +334,7 @@ class VMTranslator:
 
     pointers = defaultdict(str, {'0': 'THIS', '1': 'THAT'})
 
-    def __init__(self, filename):
-        self.filename = filename
+    def __init__(self, filename='None.vm'):
         self.classname = os.path.splitext(os.path.basename(filename))[0]
 
     @staticmethod
@@ -364,16 +363,16 @@ class VMTranslator:
         return template.substitute(
             i=i, line=line, line_number=line_number, **kwargs)
 
-    def translate_file(self):
-        infile = self.filename
-        outfile = os.path.splitext(infile)[0] + '.asm'
-        with open(infile, 'r') as i, open(outfile, 'w') as o:
-            o.write('// {}\n'.format(self.classname))
-            for instruction in self.extract_instructions(i):
-                o.write(self.translate(*instruction))
+    @classmethod
+    def translate_file(cls, filename):
+        vmt = cls(filename)
+        outfile = os.path.splitext(filename)[0] + '.asm'
+        with open(filename, 'r') as f, open(outfile, 'w') as o:
+            o.write('// {}\n'.format(vmt.classname))
+            for instruction in cls.extract_instructions(f):
+                o.write(vmt.translate(*instruction))
 
 
 if __name__ == '__main__':
-    translator = VMTranslator(sys.argv[1])
-    translator.translate_file()
+    VMTranslator.translate_file(sys.argv[1])
 
