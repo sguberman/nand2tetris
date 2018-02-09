@@ -290,39 +290,42 @@ M=M+1  // SP++
 
 # label name
 #   => (function$name)
-label = Template(  # function, name, line, line_number
+label = Template(  # name, line, line_number
 """
 // ${line_number}: $line
-(${function}.$$${name})
+(${name})
 """
+)
 
 # goto name
 #   => @function.$name, 0;JMP
-goto = Template(  # function, name, line, line_number
+goto = Template(  # name, line, line_number
 """
 // ${line_number}: $line
-@${function}.$$${name}
+@${name}
 0;JMP
 """
+)
 
 # if-goto name
 #   -> D=stack.pop(), A=name, jump iff D!=0
 #   => @SP, M=M-1, A=M, D=M, @function.$name, D;JNE
-if_goto = Template(  # function, name, line, line_number
+if_goto = Template(  # name, line, line_number
 """
 // ${line_number}: $line
 @SP
 M=M-1
 A=M
 D=M
-@${function}.$$${name}
+@${name}
 D;JNE
 """
+)
 
 
 class VMTranslator:
 
-    commands = {  # name: (template, kwargs)
+    arithmetic = {  # name: (template, kwargs)
         'add': (add_sub, {'plus_minus': '+'}),
         'sub': (add_sub, {'plus_minus': '-'}),
         'neg': (neg, {}),
@@ -334,7 +337,7 @@ class VMTranslator:
         'not': (not_, {}),
     }
 
-    templates = {
+    stack = {
         'push': {
             'constant': push_constant,
             'local': push_latt,
@@ -365,8 +368,15 @@ class VMTranslator:
 
     pointers = defaultdict(str, {'0': 'THIS', '1': 'THAT'})
 
+    branch = {
+        'label': label,
+        'goto': goto,
+        'if-goto': if_goto,
+    }
+
     def __init__(self, filename='None.vm'):
         self.classname = os.path.splitext(os.path.basename(filename))[0]
+        self.funcname = 'main'
 
     @staticmethod
     def extract_instructions(fileobj):
@@ -379,20 +389,38 @@ class VMTranslator:
     def translate(self, line, line_number=None):
         command, *args = line.split()
         if command in ('push', 'pop'):
-            return self._push_pop(command, *args, line, line_number)
-        template, kwargs = self.commands[command]
+            return self._stack(command, *args, line, line_number)
+        elif command in ('label', 'goto', 'if-goto'):
+            return self._branch(command, *args, line, line_number)
+        else:
+            return self._arithmetic(command, line, line_number)
+
+    @classmethod
+    def _arithmetic(cls, command, line, line_number):
+        template, kwargs = cls.arithmetic[command]
         kwargs.update(line=line, line_number=line_number)
         return template.substitute(kwargs)
 
-    def _push_pop(self, command, segment, i, line, line_number):
-        template = self.templates[command][segment]
+    def _stack(self, command, segment, i, line, line_number):
+        template = self.stack[command][segment]
         kwargs = {
             'segment': self.segments[segment],
             'filename': self.classname,
             'this_that': self.pointers[i],
+            'i': i,
+            'line': line,
+            'line_number': line_number,
         }
-        return template.substitute(
-            i=i, line=line, line_number=line_number, **kwargs)
+        return template.substitute(kwargs)
+
+    def _branch(self, command, name, line, line_number):
+        template = self.branch[command]
+        kwargs = {
+            'name': '{}.{}${}'.format(self.classname, self.funcname, name),
+            'line': line,
+            'line_number': line_number,
+        }
+        return template.substitute(kwargs)
 
     @classmethod
     def translate_file(cls, filename):
