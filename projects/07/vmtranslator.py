@@ -185,7 +185,7 @@ D=M  // D=*SP
 @SP
 M=M+1  // SP++
 A=M
-D=D{$plus_minus}M  // D=D{$plus_minus}*SP
+D=D${plus_minus}M  // D=D${plus_minus}*SP
 @SP
 M=M-1  // SP--
 A=M
@@ -294,6 +294,13 @@ class VMTranslator:
     def __init__(self, filename):
         self.filename = filename
         self.classname = os.path.splitext(os.path.basename(filename))[0]
+        self.segments = defaultdict(str, {
+            'local': 'LCL',
+            'argument': 'ARG',
+            'this': 'THIS',
+            'that': 'THAT',
+        })
+        self.pointers = defaultdict(str, {'0': 'THIS', '1': 'THAT'})
 
     @staticmethod
     def extract_instructions(fileobj):
@@ -304,28 +311,84 @@ class VMTranslator:
             yield instruction, line_number
 
     def parse(self, line, line_number=None):
-        commands = {
-            'push': self.push,
-            'pop': self.pop,
-            'add': self.add,
-            'sub': self.sub,
-            'neg': self.neg,
-            'eq': self.eq,
-            'gt': self.gt,
-            'lt': self.lt,
-            'and': self.and_,
-            'or': self.or_,
-            'not': self.not_,
-        }
         command, *args = line.split()
-        return commands[command](*args, line, line_number)
+        kwargs = dict(zip(('segment', 'i'), args))
+        kwargs.update({'line': line, 'line_number': line_number})
+
+        commands = {  # name: (method, extra_kwargs)
+            'push': (self.push, {}),
+            'pop': (self.pop, {}),
+            'add': (self.add_sub, {'plus_minus': '+'}),
+            'sub': (self.add_sub, {'plus_minus': '-'}),
+            'neg': (self.neg, {}),
+            'eq': (self.eq_gt_lt, {'jeq_jgt_jlt': 'JEQ'}),
+            'gt': (self.eq_gt_lt, {'jeq_jgt_jlt': 'JGT'}),
+            'lt': (self.eq_gt_lt, {'jeq_jlt_jlt': 'JLT'}),
+            'and': (self.and_or, {'amper_pipe': '&'}),
+            'or': (self.and_or, {'amper_pipe': '|'}),
+            'not': (self.not_, {}),
+        }
+
+        method, kwextra = commands[command]
+        kwargs.update(kwextra)
+        return method(**kwargs)
+
+    def push(self, segment, i, **kwargs):
+        templates = {
+            'constant': push_constant,
+            'local': push_latt,
+            'argument': push_latt,
+            'this': push_latt,
+            'that': push_latt,
+            'static': push_static,
+            'temp': push_temp,
+            'pointer': push_pointer,
+        }
+        kwargs.update({
+            'segment': self.segments[segment],
+            'filename': self.classname,
+            'this_that': self.pointers[i],
+        })
+        return templates[segment].substitute(i=i, **kwargs)
+
+    def pop(self, segment, i, **kwargs):
+        templates = {
+            'local': pop_local,
+            'argument': pop_latt,
+            'this': pop_latt,
+            'that': pop_latt,
+            'static': pop_static,
+            'temp': pop_temp,
+            'pointer': pop_pointer,
+        }
+        kwargs.update({
+            'segment': self.segments[segment],
+            'filename': self.classname,
+            'this_that': self.pointers[i],
+        })
+        return templates[segment].substitute(i=i, **kwargs)
+
+    def add_sub(self, **kwargs):
+        return add_sub.substitute(kwargs)
+
+    def neg(self, **kwargs):
+        return neg.substitute(kwargs)
+
+    def eq_gt_lt(self, **kwargs):
+        return eq_gt_lt.substitute(kwargs)
+
+    def and_or(self, **kwargs):
+        return and_or.substitute(kwargs)
+
+    def not_(self, **kwargs):
+        return not_.substitute(kwargs)
 
     def translate(self):
         infile = self.filename
         outfile = os.path.splitext(infile)[0] + '.asm'
         with open(infile, 'r') as i, open(outfile, 'w') as o:
-            instructions = self.extract_instructions(i)
-            for instruction in instructions:
+            o.write('// {}\n'.format(self.classname))
+            for instruction in self.extract_instructions(i):
                 o.write(self.parse(*instruction))
 
 
