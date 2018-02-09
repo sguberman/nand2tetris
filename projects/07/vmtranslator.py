@@ -288,6 +288,37 @@ M=M+1  // SP++
 """
 )
 
+# label name
+#   => (function$name)
+label = Template(  # function, name, line, line_number
+"""
+// ${line_number}: $line
+(${function}.$$${name})
+"""
+
+# goto name
+#   => @function.$name, 0;JMP
+goto = Template(  # function, name, line, line_number
+"""
+// ${line_number}: $line
+@${function}.$$${name}
+0;JMP
+"""
+
+# if-goto name
+#   -> D=stack.pop(), A=name, jump iff D!=0
+#   => @SP, M=M-1, A=M, D=M, @function.$name, D;JNE
+if_goto = Template(  # function, name, line, line_number
+"""
+// ${line_number}: $line
+@SP
+M=M-1
+A=M
+D=M
+@${function}.$$${name}
+D;JNE
+"""
+
 
 class VMTranslator:
 
