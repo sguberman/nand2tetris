@@ -291,16 +291,52 @@ M=M+1  // SP++
 
 class VMTranslator:
 
+    commands = {  # name: (template, kwargs)
+        'add': (add_sub, {'plus_minus': '+'}),
+        'sub': (add_sub, {'plus_minus': '-'}),
+        'neg': (neg, {}),
+        'eq':  (eq_gt_lt, {'jeq_jgt_jlt': 'JEQ'}),
+        'gt':  (eq_gt_lt, {'jeq_jgt_jlt': 'JGT'}),
+        'lt':  (eq_gt_lt, {'jeq_jgt_jlt': 'JLT'}),
+        'and': (and_or, {'amper_pipe': '&'}),
+        'or':  (and_or, {'amper_pipe': '|'}),
+        'not': (not_, {}),
+    }
+
+    templates = {
+        'push': {
+            'constant': push_constant,
+            'local': push_latt,
+            'argument': push_latt,
+            'this': push_latt,
+            'that': push_latt,
+            'static': push_static,
+            'temp': push_temp,
+            'pointer': push_pointer,
+        },
+        'pop': {
+            'local': pop_latt,
+            'argument': pop_latt,
+            'this': pop_latt,
+            'that': pop_latt,
+            'static': pop_static,
+            'temp': pop_temp,
+            'pointer': pop_pointer,
+        },
+   }
+
+    segments = defaultdict(str, {
+        'local': 'LCL',
+        'argument': 'ARG',
+        'this': 'THIS',
+        'that': 'THAT',
+    })
+
+    pointers = defaultdict(str, {'0': 'THIS', '1': 'THAT'})
+
     def __init__(self, filename):
         self.filename = filename
         self.classname = os.path.splitext(os.path.basename(filename))[0]
-        self.segments = defaultdict(str, {
-            'local': 'LCL',
-            'argument': 'ARG',
-            'this': 'THIS',
-            'that': 'THAT',
-        })
-        self.pointers = defaultdict(str, {'0': 'THIS', '1': 'THAT'})
 
     @staticmethod
     def extract_instructions(fileobj):
@@ -310,89 +346,34 @@ class VMTranslator:
                 continue
             yield instruction, line_number
 
-    def parse(self, line, line_number=None):
+    def translate(self, line, line_number=None):
         command, *args = line.split()
-        kwargs = dict(zip(('segment', 'i'), args))
-        kwargs.update({'line': line, 'line_number': line_number})
+        if command in ('push', 'pop'):
+            return self._push_pop(command, *args, line, line_number)
+        template, kwargs = self.commands[command]
+        kwargs.update(line=line, line_number=line_number)
+        return template.substitute(kwargs)
 
-        commands = {  # name: (method, extra_kwargs)
-            'push': (self.push, {}),
-            'pop': (self.pop, {}),
-            'add': (self.add_sub, {'plus_minus': '+'}),
-            'sub': (self.add_sub, {'plus_minus': '-'}),
-            'neg': (self.neg, {}),
-            'eq': (self.eq_gt_lt, {'jeq_jgt_jlt': 'JEQ'}),
-            'gt': (self.eq_gt_lt, {'jeq_jgt_jlt': 'JGT'}),
-            'lt': (self.eq_gt_lt, {'jeq_jlt_jlt': 'JLT'}),
-            'and': (self.and_or, {'amper_pipe': '&'}),
-            'or': (self.and_or, {'amper_pipe': '|'}),
-            'not': (self.not_, {}),
-        }
-
-        method, kwextra = commands[command]
-        kwargs.update(kwextra)
-        return method(**kwargs)
-
-    def push(self, segment, i, **kwargs):
-        templates = {
-            'constant': push_constant,
-            'local': push_latt,
-            'argument': push_latt,
-            'this': push_latt,
-            'that': push_latt,
-            'static': push_static,
-            'temp': push_temp,
-            'pointer': push_pointer,
-        }
-        kwargs.update({
+    def _push_pop(self, command, segment, i, line, line_number):
+        template = self.templates[command][segment]
+        kwargs = {
             'segment': self.segments[segment],
             'filename': self.classname,
             'this_that': self.pointers[i],
-        })
-        return templates[segment].substitute(i=i, **kwargs)
-
-    def pop(self, segment, i, **kwargs):
-        templates = {
-            'local': pop_local,
-            'argument': pop_latt,
-            'this': pop_latt,
-            'that': pop_latt,
-            'static': pop_static,
-            'temp': pop_temp,
-            'pointer': pop_pointer,
         }
-        kwargs.update({
-            'segment': self.segments[segment],
-            'filename': self.classname,
-            'this_that': self.pointers[i],
-        })
-        return templates[segment].substitute(i=i, **kwargs)
+        return template.substitute(
+            i=i, line=line, line_number=line_number, **kwargs)
 
-    def add_sub(self, **kwargs):
-        return add_sub.substitute(kwargs)
-
-    def neg(self, **kwargs):
-        return neg.substitute(kwargs)
-
-    def eq_gt_lt(self, **kwargs):
-        return eq_gt_lt.substitute(kwargs)
-
-    def and_or(self, **kwargs):
-        return and_or.substitute(kwargs)
-
-    def not_(self, **kwargs):
-        return not_.substitute(kwargs)
-
-    def translate(self):
+    def translate_file(self):
         infile = self.filename
         outfile = os.path.splitext(infile)[0] + '.asm'
         with open(infile, 'r') as i, open(outfile, 'w') as o:
             o.write('// {}\n'.format(self.classname))
             for instruction in self.extract_instructions(i):
-                o.write(self.parse(*instruction))
+                o.write(self.translate(*instruction))
 
 
 if __name__ == '__main__':
     translator = VMTranslator(sys.argv[1])
-    translator.translate()
+    translator.translate_file()
 
