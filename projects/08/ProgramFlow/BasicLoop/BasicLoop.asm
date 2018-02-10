@@ -25,7 +25,7 @@ A=M
 M=D  // *addr=*SP
 
 // 10: label LOOP_START
-(BasicLoop.main$LOOP_START)
+(BasicLoop.None$LOOP_START)
 
 // 11: push argument 0
 @0
@@ -157,7 +157,7 @@ M=M+1  // SP++
 M=M-1
 A=M
 D=M
-@BasicLoop.main$LOOP_START
+@BasicLoop.None$LOOP_START
 D;JNE
 
 // 21: push local 0

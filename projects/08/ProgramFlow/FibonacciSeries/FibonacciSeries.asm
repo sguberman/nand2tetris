@@ -124,7 +124,7 @@ A=M
 M=D  // *addr=*SP
 
 // 23: label MAIN_LOOP_START
-(FibonacciSeries.main$MAIN_LOOP_START)
+(FibonacciSeries.None$MAIN_LOOP_START)
 
 // 25: push argument 0
 @0
@@ -144,15 +144,15 @@ M=M+1  // SP++
 M=M-1
 A=M
 D=M
-@FibonacciSeries.main$COMPUTE_ELEMENT
+@FibonacciSeries.None$COMPUTE_ELEMENT
 D;JNE
 
 // 27: goto END_PROGRAM
-@FibonacciSeries.main$END_PROGRAM
+@FibonacciSeries.None$END_PROGRAM
 0;JMP
 
 // 29: label COMPUTE_ELEMENT
-(FibonacciSeries.main$COMPUTE_ELEMENT)
+(FibonacciSeries.None$COMPUTE_ELEMENT)
 
 // 31: push that 0
 @0
@@ -310,8 +310,8 @@ A=M
 M=D  // *addr=*SP
 
 // 46: goto MAIN_LOOP_START
-@FibonacciSeries.main$MAIN_LOOP_START
+@FibonacciSeries.None$MAIN_LOOP_START
 0;JMP
 
 // 48: label END_PROGRAM
-(FibonacciSeries.main$END_PROGRAM)
+(FibonacciSeries.None$END_PROGRAM)

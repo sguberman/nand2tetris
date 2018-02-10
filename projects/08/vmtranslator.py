@@ -215,18 +215,18 @@ M=M+1  // SP--
 #   -> jump if D eq/gt/lt 0 to set D=-1 (true) otherwise set D=0 (false)
 #   -> push D to top of stack
 #   -> labels get populated with a unique number (line_number) during translation
-eq_gt_lt = Template(  # jeq_jgt_jlt, line, line_number
+eq_gt_lt = Template(  # jeq_jgt_jlt, name, line, line_number
 """
 // ${line_number}: $line
-@$$ASM.COMPARE.${line_number}.START
+@$$ASM.COMPARE.${name}.${line_number}.START
 0;JMP  // jump to start of this call
 
-($$ASM.COMPARE.${line_number}.TRUE)  // this branch gets skipped at first
+($$ASM.COMPARE.${name}.${line_number}.TRUE)  // skipped at first
     D=-1  // it just sets D=-1 (true)
-    @$$ASM.COMPARE.${line_number}.END
+    @$$ASM.COMPARE.${name}.${line_number}.END
     0;JMP  // jump back to call
 
-($$ASM.COMPARE.${line_number}.START)  // call starts here
+($$ASM.COMPARE.${name}.${line_number}.START)  // call starts here
     @SP
     M=M-1
     A=M
@@ -235,11 +235,11 @@ eq_gt_lt = Template(  # jeq_jgt_jlt, line, line_number
     M=M-1
     A=M
     D=M-D  // pop-D -> D
-    @$$ASM.COMPARE.${line_number}.TRUE
+    @$$ASM.COMPARE.${name}.${line_number}.TRUE
     D;$jeq_jgt_jlt  // jump to function if true
     D=0  // otherwise false
 
-($$ASM.COMPARE.${line_number}.END)  // jump back here
+($$ASM.COMPARE.${name}.${line_number}.END)  // jump back here
     @SP
     A=M
     M=D
@@ -376,7 +376,7 @@ class VMTranslator:
 
     def __init__(self, filename='None.vm'):
         self.classname = os.path.splitext(os.path.basename(filename))[0]
-        self.funcname = 'main'
+        self.funcname = '{}.None'.format(self.classname)
 
     @staticmethod
     def extract_instructions(fileobj):
@@ -386,7 +386,7 @@ class VMTranslator:
                 continue
             yield instruction, line_number
 
-    def translate(self, line, line_number=None):
+    def parse(self, line, line_number=None):
         command, *args = line.split()
         if command in ('push', 'pop'):
             return self._stack(command, *args, line, line_number)
@@ -395,10 +395,9 @@ class VMTranslator:
         else:
             return self._arithmetic(command, line, line_number)
 
-    @classmethod
-    def _arithmetic(cls, command, line, line_number):
-        template, kwargs = cls.arithmetic[command]
-        kwargs.update(line=line, line_number=line_number)
+    def _arithmetic(self, command, line, line_number):
+        template, kwargs = self.arithmetic[command]
+        kwargs.update(line=line, line_number=line_number, name=self.funcname)
         return template.substitute(kwargs)
 
     def _stack(self, command, segment, i, line, line_number):
@@ -416,22 +415,32 @@ class VMTranslator:
     def _branch(self, command, name, line, line_number):
         template = self.branch[command]
         kwargs = {
-            'name': '{}.{}${}'.format(self.classname, self.funcname, name),
+            'name': '{}${}'.format(self.funcname, name),
             'line': line,
             'line_number': line_number,
         }
         return template.substitute(kwargs)
 
     @classmethod
-    def translate_file(cls, filename):
-        vmt = cls(filename)
-        outfile = os.path.splitext(filename)[0] + '.asm'
-        with open(filename, 'r') as f, open(outfile, 'w') as o:
-            o.write('// {}\n'.format(vmt.classname))
-            for instruction in cls.extract_instructions(f):
-                o.write(vmt.translate(*instruction))
+    def translate(cls, filepath):
+        try:
+            vmfiles = [os.path.abspath(fn) for fn in os.listdir(filepath)
+                       if fn.endswith('.vm')]  # TODO: fix bug here
+        except NotADirectoryError:
+            vmfiles = [filepath]
+        outfile = os.path.splitext(filepath)[0] + '.asm'
+        with open(outfile, 'w') as o:
+            # TODO: sys initialization
+            for fp in vmfiles:
+                vmt = cls(fp)
+                with open(fp, 'r') as f:
+                    o.write('// {}\n'.format(vmt.classname))
+                    # TODO: class initialization
+                    for instruction in cls.extract_instructions(f):
+                        o.write(vmt.parse(*instruction))
 
 
 if __name__ == '__main__':
-    VMTranslator.translate_file(sys.argv[1])
+    file_or_dir = os.path.abspath(sys.argv[1])
+    VMTranslator.translate(file_or_dir)
 
